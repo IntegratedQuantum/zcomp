@@ -29,10 +29,10 @@ void main() {
 		part.vel.y = -part.vel.y;
 	}
 	part.vel *= 0.99;
-	for(int j = 0; j < 1024; j++) {
+	for(int j = 0; j < 4096; j++) {
 		float distSquare = 0.01 + dot(particles[j].pos - part.pos, particles[j].pos - part.pos);
 		if(distSquare < 10000) {
-			part.vel -= (particles[j].pos - part.pos)/distSquare/100*(1/distSquare*10 - 1/10000.0);
+			part.vel -= (particles[j].pos - part.pos)/distSquare/1000*(1/distSquare*10 - 1/20.0);
 		}
 	}
 	part.pos += part.vel;
