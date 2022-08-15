@@ -15,7 +15,7 @@ pub const imageWidth: u31 = 512;
 pub const imageHeight: u31 = 512;
 pub const numParticles: u31 = 4096;
 
-var ssbo: c_uint = undefined;
+var ssbo: [2]c_uint = undefined;
 
 const Color = graphics.Color;
 
@@ -206,13 +206,16 @@ fn genSSBO() void {
 		if((i & 3) <= 1) {
 			data[i] = random*@intToFloat(f32, imageWidth)/4;
 		} else {
-			data[i] = random/1000;
+			data[i] = random;
 		}
 	}
-	c.glGenBuffers(1, &ssbo);
-	c.glBindBuffer(c.GL_SHADER_STORAGE_BUFFER, ssbo);
+	c.glGenBuffers(2, &ssbo);
+	c.glBindBuffer(c.GL_SHADER_STORAGE_BUFFER, ssbo[0]);
 	c.glBufferData(c.GL_SHADER_STORAGE_BUFFER, data.len*4, &data, c.GL_STATIC_DRAW); //sizeof(data) only works for statically sized C/C++ arrays.
-	c.glBindBufferBase(c.GL_SHADER_STORAGE_BUFFER, 3, ssbo);
+	c.glBindBufferBase(c.GL_SHADER_STORAGE_BUFFER, 3, ssbo[0]);
+	c.glBindBuffer(c.GL_SHADER_STORAGE_BUFFER, ssbo[1]);
+	c.glBufferData(c.GL_SHADER_STORAGE_BUFFER, data.len*4, &data, c.GL_STATIC_DRAW); //sizeof(data) only works for statically sized C/C++ arrays.
+	c.glBindBufferBase(c.GL_SHADER_STORAGE_BUFFER, 4, ssbo[1]);
 	c.glBindBuffer(c.GL_SHADER_STORAGE_BUFFER, 0); // unbind
 }
 
@@ -244,7 +247,7 @@ pub fn main() anyerror!void {
 	const renderHandle = genRenderProg();
 	const computeHandle = genComputeProg();
 	genSSBO();
-
+	var frame: u31 = 0;
 	while(c.glfwWindowShouldClose(window) == 0) {
 		var deltaTime = std.time.nanoTimestamp() - lastTime;
 		lastTime += deltaTime;
@@ -257,7 +260,9 @@ pub fn main() anyerror!void {
 		c.glfwPollEvents();
 		c.glViewport(0, 0, @intCast(c_int, width), @intCast(c_int, height));
 
-
+		frame += 1;
+		c.glBindBufferBase(c.GL_SHADER_STORAGE_BUFFER, 3, ssbo[frame & 1]);
+		c.glBindBufferBase(c.GL_SHADER_STORAGE_BUFFER, 4, ssbo[(frame ^ 1) & 1]);
 		c.glUseProgram(computeHandle);
 		c.glUniform1f(c.glGetUniformLocation(computeHandle, "roll"), @intToFloat(f32, lastTime/1000000 & 65535)/100.0);
 		c.glDispatchCompute(numParticles, 1, 1);

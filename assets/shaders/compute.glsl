@@ -12,23 +12,30 @@ layout(std430, binding = 3) buffer ssbo {
 	Particle particles[4096];
 };
 
+layout(std430, binding = 4) buffer ssbo2 {
+	Particle particlesOut[4096];
+};
+
 void main() {
 	uint i = gl_WorkGroupID.x;
-	imageStore(destTex, ivec2(particles[i].pos), vec4(0.0, 0.0, 0.0, 0.0));
-	particles[i].pos += particles[i].vel;
-	if(particles[i].pos.x < 0 || particles[i].pos.x > 512) {
-		particles[i].pos.x = clamp(particles[i].pos.x, 0, 512);
-		particles[i].vel.x = -particles[i].vel.x;
+	Particle part = particles[i];
+	imageStore(destTex, ivec2(part.pos), vec4(0.0, 0.0, 0.0, 0.0));
+	if(part.pos.x < 0 || part.pos.x > 512) {
+		part.pos.x = clamp(part.pos.x, 0, 512);
+		part.vel.x = -part.vel.x;
 	}
-	if(particles[i].pos.y < 0 || particles[i].pos.y > 512) {
-		particles[i].pos.y = clamp(particles[i].pos.y, 0, 512);
-		particles[i].vel.y = -particles[i].vel.y;
+	if(part.pos.y < 0 || part.pos.y > 512) {
+		part.pos.y = clamp(part.pos.y, 0, 512);
+		part.vel.y = -part.vel.y;
 	}
+	part.vel *= 0.99;
 	for(int j = 0; j < 1024; j++) {
-		float distSquare = 0.01 + dot(particles[i].pos - particles[j].pos, particles[i].pos - particles[j].pos);
-		if(distSquare < 100) {
-			particles[i].vel -= (particles[j].pos - particles[i].pos)/distSquare/100;
+		float distSquare = 0.01 + dot(particles[j].pos - part.pos, particles[j].pos - part.pos);
+		if(distSquare < 10000) {
+			part.vel -= (particles[j].pos - part.pos)/distSquare/100*(1/distSquare*10 - 1/10000.0);
 		}
 	}
-	imageStore(destTex, ivec2(particles[i].pos), vec4(1.0, 0.0, 0.0, 0.0));
+	part.pos += part.vel;
+	particlesOut[i] = part;
+	imageStore(destTex, ivec2(part.pos), vec4(1.0, 0.0, 0.0, 0.0));
 }
