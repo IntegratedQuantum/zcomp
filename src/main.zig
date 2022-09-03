@@ -264,7 +264,7 @@ pub fn main() anyerror!void {
 		c.glBindBufferBase(c.GL_SHADER_STORAGE_BUFFER, 3, ssbo[frame & 1]);
 		c.glBindBufferBase(c.GL_SHADER_STORAGE_BUFFER, 4, ssbo[(frame ^ 1) & 1]);
 		c.glUseProgram(computeHandle);
-		c.glUniform1f(c.glGetUniformLocation(computeHandle, "roll"), @intToFloat(f32, lastTime/1000000 & 65535)/100.0);
+		c.glUniform1f(c.glGetUniformLocation(computeHandle, "roll"), @intToFloat(f32, @divFloor(lastTime, 1000000) & 65535)/100.0);
 		c.glDispatchCompute(numParticles, 1, 1);
 
 		c.glUseProgram(renderHandle);
