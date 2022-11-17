@@ -1,41 +1,55 @@
 #version 430
 
-uniform float roll;
-uniform writeonly image2D destTex;
-layout (local_size_x = 1, local_size_y = 1) in;
+#define MAX_LAYER_WIDTH 1024
 
-struct Particle {
-	vec2 pos, vel;
+layout (local_size_x = MAX_LAYER_WIDTH, local_size_y = 1) in;
+
+struct Neuron {
+	float weights[MAX_LAYER_WIDTH];
+	float bias;
+};
+
+struct LayerData {
+	int size;
+	int offset;
 };
 
 layout(std430, binding = 3) buffer ssbo {
-	Particle particles[4096];
+	Neuron neurons[];
 };
 
 layout(std430, binding = 4) buffer ssbo2 {
-	Particle particlesOut[4096];
+	LayerData layers[];
 };
 
+layout(std430, binding = 5) buffer ssbo3 {
+	float neuronOutput[];
+};
+
+layout(std430, binding = 6) buffer ssbo4 {
+	float storedNeuronInput[];
+};
+
+uniform int layer;
+
+float sigmoid(float x) {
+	return 1/(1+exp(-x));
+}
+
 void main() {
-	uint i = gl_WorkGroupID.x;
-	Particle part = particles[i];
-	imageStore(destTex, ivec2(part.pos), vec4(0.0, 0.0, 0.0, 0.0));
-	if(part.pos.x < 0 || part.pos.x > 512) {
-		part.pos.x = clamp(part.pos.x, 0, 512);
-		part.vel.x = -part.vel.x;
+	int neuron = int(gl_LocalInvocationID.x);
+	LayerData curLayer = layers[layer];
+	LayerData pastLayer = layers[layer-1];
+	if(neuron >= curLayer.size) return;
+
+	int i = 0;
+	float neuronInput = neurons[neuron + curLayer.offset].bias;
+	while(i < pastLayer.size) {
+		int pastNeuron = i + pastLayer.offset;
+		neuronInput += neurons[pastNeuron].weights[neuron]*neuronOutput[pastNeuron];
+		i += 1;
 	}
-	if(part.pos.y < 0 || part.pos.y > 512) {
-		part.pos.y = clamp(part.pos.y, 0, 512);
-		part.vel.y = -part.vel.y;
-	}
-	part.vel *= 0.99;
-	for(int j = 0; j < 4096; j++) {
-		float distSquare = 0.01 + dot(particles[j].pos - part.pos, particles[j].pos - part.pos);
-		if(distSquare < 10000) {
-			part.vel -= (particles[j].pos - part.pos)/distSquare/1000*(1/distSquare*10 - 1/20.0);
-		}
-	}
-	part.pos += part.vel;
-	particlesOut[i] = part;
-	imageStore(destTex, ivec2(part.pos), vec4(1.0, 0.0, 0.0, 0.0));
+
+	storedNeuronInput[neuron + curLayer.offset] = neuronInput;
+	neuronOutput[neuron + curLayer.offset] = sigmoid(neuronInput);
 }
