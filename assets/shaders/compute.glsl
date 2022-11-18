@@ -1,6 +1,6 @@
 #version 430
 
-#define MAX_LAYER_WIDTH 1024
+#define MAX_LAYER_WIDTH 256
 
 layout (local_size_x = MAX_LAYER_WIDTH, local_size_y = 1) in;
 

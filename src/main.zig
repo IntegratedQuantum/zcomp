@@ -10,6 +10,7 @@ pub const c = @cImport ({
 
 pub const width: u31 = 240;
 pub const height: u31 = 135;
+pub const size: u31 = 16;
 
 var ssbo: [4]c_uint = undefined;
 
@@ -175,11 +176,11 @@ const LayerData = extern struct {
 };
 
 const Neuron = extern struct {
-	weights: [1024]f32,
+	weights: [size*size]f32,
 	bias: f32,
 };
 
-const layers = [_]i32 {32*32, 8*8, 8, 8*8, 32*32};
+const layers = [_]i32 {size*size, 8*8, 4*4, 8*8, size*size};
 const multiplier: u64 = 0x5DEECE66D;
 const addend: u64 = 0xB;
 const mask: u64 = (1 << 48) - 1;
@@ -212,7 +213,7 @@ fn genSSBO() !void {
 		neuron.bias = @intToFloat(f32, seed & range) / @intToFloat(f32, range) - 0.5;
 		for(neuron.weights) |*weight| {
 			seed = next(seed);
-			weight.* = (@intToFloat(f32, seed & range) / @intToFloat(f32, range) - 0.5)/16;
+			weight.* = (@intToFloat(f32, seed & range) / @intToFloat(f32, range) - 0.5);
 		}
 	}
 	c.glGenBuffers(4, &ssbo);
@@ -232,7 +233,7 @@ fn genSSBO() !void {
 }
 
 fn genImage() void {
-	const range: u64 = 31;
+	const range: u64 = size-1;
 	seed = next(seed);
 	var rectX: u64 = seed>>16 & range;
 	seed = next(seed);
@@ -242,13 +243,13 @@ fn genImage() void {
 	seed = next(seed);
 	var rectHeight: u64 = seed>>16 & range;
 	var x: u32 = 0;
-	while(x < 32): (x += 1) {
+	while(x < size): (x += 1) {
 		var y: u32 = 0;
-		while(y < 32): (y += 1) {
+		while(y < size): (y += 1) {
 			if(x >= rectX and x < rectX + rectWidth and y >= rectY and y < rectY + rectHeight) {
-				imageData[x + y*32] = 1;
+				imageData[x + y*size] = 1;
 			} else {
-				imageData[x + y*32] = 0;
+				imageData[x + y*size] = 0;
 			}
 		}
 	}
@@ -264,7 +265,7 @@ pub fn main() anyerror!void {
 		return error.GLFWFailed;
 	}
 
-	window = c.glfwCreateWindow(@intCast(c_int, 8*width), @intCast(c_int, 8*height), "pixanim", null, null) orelse return error.GLFWFailed;
+	window = c.glfwCreateWindow(@intCast(c_int, 8*width), @intCast(c_int, 8*height), "ZComp", null, null) orelse return error.GLFWFailed;
 
 	c.glfwMakeContextCurrent(window);
 	c.glfwSwapInterval(0);
@@ -293,7 +294,7 @@ pub fn main() anyerror!void {
 			std.log.err("Encountered gl error {}", .{glError});
 			std.os.exit(1);
 		}
-		std.log.info("{}\n", .{deltaTime});
+		//std.log.info("{}", .{deltaTime});
 		c.glfwPollEvents();
 		c.glViewport(0, 0, @intCast(c_int, 8*width), @intCast(c_int, 8*height));
 
@@ -308,17 +309,19 @@ pub fn main() anyerror!void {
 			}
 		}
 
-		c.glUseProgram(renderHandle);
-		c.glUniform2i(c.glGetUniformLocation(renderHandle, "dim"), 32, 32);
-		c.glUniform2i(c.glGetUniformLocation(renderHandle, "posOffset"), 0, 0);
-		c.glUniform1i(c.glGetUniformLocation(renderHandle, "offset"), 0);
-		c.glDrawArrays(c.GL_TRIANGLE_STRIP, 0, 4);
-		c.glUniform1i(c.glGetUniformLocation(renderHandle, "offset"), @intCast(c_int, imageData.len - 1024 - 136));
-		c.glDrawArrays(c.GL_TRIANGLE_STRIP, 0, 4);
+		if(frame & 1023 == 0) {
+			c.glUseProgram(renderHandle);
+			c.glUniform2i(c.glGetUniformLocation(renderHandle, "dim"), size, size);
+			c.glUniform2i(c.glGetUniformLocation(renderHandle, "posOffset"), 0, 0);
+			c.glUniform1i(c.glGetUniformLocation(renderHandle, "offset"), 0);
+			c.glDrawArrays(c.GL_TRIANGLE_STRIP, 0, 4);
+			c.glUniform2i(c.glGetUniformLocation(renderHandle, "dim"), size, 2*size);
+			c.glUniform1i(c.glGetUniformLocation(renderHandle, "offset"), @intCast(c_int, imageData.len - 2*size*size));
+			c.glDrawArrays(c.GL_TRIANGLE_STRIP, 0, 4);
 
-		c.glfwSwapBuffers(window);
-		c.glFinish();
-		c.glClear(c.GL_COLOR_BUFFER_BIT);
+			c.glfwSwapBuffers(window);
+			c.glClear(c.GL_COLOR_BUFFER_BIT);
+		}
 
 		c.glUseProgram(backpropHandle);
 		var i: i32 = layers.len - 1;
